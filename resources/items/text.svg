@@ -1,0 +1,10 @@
+<svg viewBox="0 0 240 80" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .small {{
+      font: bold 1px sans-serif;
+      fill: rgba(127, 255, 127, 255);
+    }}
+  </style>
+  
+  <text x="-0.5" y="9.25" class="small">{text}</text>
+</svg>  

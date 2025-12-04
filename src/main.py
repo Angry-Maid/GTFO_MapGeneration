@@ -1,16 +1,15 @@
-from PIL import Image
-import background
-from zone_builder import build_level, load_json_data
 
-test_data = load_json_data("resources/levels/r1a1.json")
-door_config = load_json_data("resources/door_config.json")
+from time import sleep
+import keyboard
+from src.dll_integration import do_everything, start_dll_thread
 
-result = build_level(test_data)
-bg = background.create_background(result.size)
+def on_hotkey():
+    do_everything()
+    
 
-bg.alpha_composite(result, (0, 0))
-final_img = bg
+keyboard.add_hotkey('ctrl+shift+a', on_hotkey)
 
-print("done generating")
 
-final_img.show()
+start_dll_thread()
+while True:
+    sleep(1)
