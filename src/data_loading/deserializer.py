@@ -1,3 +1,4 @@
+import json
 import struct
 from pathlib import Path
 
@@ -24,6 +25,68 @@ def read_cs_string(f):
     return string_bytes.decode("utf-8")
 
 
+def load_data_inner(f):
+    # ---- Nested Dictionary ----
+    dimension_containers = {}
+    dimensions_count = struct.unpack("<i", f.read(4))[0]
+    # print(f"dimensions count: {dimensions_count}")
+
+    for _ in range(dimensions_count):
+        out_key = struct.unpack("<i", f.read(4))[0]
+        outer_count = struct.unpack("<i", f.read(4))[0]
+        
+        container_map = {}
+
+        # print(f"   zone count: {outer_count}")
+
+        for _ in range(outer_count):
+            outer_key = struct.unpack("<i", f.read(4))[0]
+            inner_count = struct.unpack("<i", f.read(4))[0]
+            inner_dict = {}
+
+            # print(f"       boxes in zone count: {inner_count}")
+
+            for _ in range(inner_count):
+                ik_bytes = f.read(4)
+                if len(ik_bytes) != 4:
+                    raise EOFError("Unexpected EOF while reading inner_key")
+                inner_key = struct.unpack("<i", ik_bytes)[0]
+
+                # ---- read ContainerDescriptor in the order you provided ----
+                # bw.Write(cd.image);
+                cd_image = read_cs_string(f)
+
+                # bw.Write(cd.position.x);
+                px_bytes = f.read(4)
+                if len(px_bytes) != 4:
+                    raise EOFError("Unexpected EOF while reading position.x")
+                pos_x = struct.unpack("<f", px_bytes)[0]
+
+                # bw.Write(cd.position.y);
+                py_bytes = f.read(4)
+                if len(py_bytes) != 4:
+                    raise EOFError("Unexpected EOF while reading position.y")
+                pos_y = struct.unpack("<f", py_bytes)[0]
+
+                # bw.Write(cd.rotation);
+                rot_bytes = f.read(4)
+                if len(rot_bytes) != 4:
+                    raise EOFError("Unexpected EOF while reading rotation")
+                rotation = struct.unpack("<i", rot_bytes)[0]
+
+                inner_dict[inner_key] = {
+                    "image": cd_image,
+                    "position": (pos_x, pos_y),
+                    "rotation": rotation,
+                }
+
+            container_map[outer_key] = inner_dict
+
+        dimension_containers[out_key] = container_map
+    
+    return dimension_containers
+
+
 def load_data_binary(path: str):
     path = Path(path)
 
@@ -39,7 +102,7 @@ def load_data_binary(path: str):
                 verts_len = struct.unpack("<i", f.read(4))[0]
                 tris_len = struct.unpack("<i", f.read(4))[0]
 
-                # print(f"decoding size: {verts_len} and {tris_len}")
+                print(f"decoding size: {verts_len} and {tris_len}")
 
                 # ---- Vertices ----
                 vertices = np.frombuffer(
@@ -88,79 +151,27 @@ def load_data_binary(path: str):
                     }
                 )
 
-            # print("ended meshes")
-
-            # ---- Nested Dictionary ----
-            dimension_containers = {}
-            dimensions_count = struct.unpack("<i", f.read(4))[0]
-            # print(f"dimensions count: {dimensions_count}")
-            out_key = struct.unpack("<i", f.read(4))[0]
-
-            for _ in range(dimensions_count):
-                outer_count = struct.unpack("<i", f.read(4))[0]
-                container_map = {}
-
-                # print(f"   zone count: {outer_count}")
-
-                for _ in range(outer_count):
-                    outer_key = struct.unpack("<i", f.read(4))[0]
-                    inner_count = struct.unpack("<i", f.read(4))[0]
-                    inner_dict = {}
-
-                    # print(f"       boxes in zone count: {inner_count}")
-
-                    for _ in range(inner_count):
-                        ik_bytes = f.read(4)
-                        if len(ik_bytes) != 4:
-                            raise EOFError("Unexpected EOF while reading inner_key")
-                        inner_key = struct.unpack("<i", ik_bytes)[0]
-
-                        # ---- read ContainerDescriptor in the order you provided ----
-                        # bw.Write(cd.image);
-                        cd_image = read_cs_string(f)
-
-                        # bw.Write(cd.position.x);
-                        px_bytes = f.read(4)
-                        if len(px_bytes) != 4:
-                            raise EOFError("Unexpected EOF while reading position.x")
-                        pos_x = struct.unpack("<f", px_bytes)[0]
-
-                        # bw.Write(cd.position.y);
-                        py_bytes = f.read(4)
-                        if len(py_bytes) != 4:
-                            raise EOFError("Unexpected EOF while reading position.y")
-                        pos_y = struct.unpack("<f", py_bytes)[0]
-
-                        # bw.Write(cd.rotation);
-                        rot_bytes = f.read(4)
-                        if len(rot_bytes) != 4:
-                            raise EOFError("Unexpected EOF while reading rotation")
-                        rotation = struct.unpack("<i", rot_bytes)[0]
-
-                        inner_dict[inner_key] = {
-                            "image": cd_image,
-                            "position": (pos_x, pos_y),
-                            "rotation": rotation,
-                        }
-
-                    container_map[outer_key] = inner_dict
-
-                dimension_containers[out_key] = container_map
-
+            #print("ended meshes")
+            containers = load_data_inner(f)
+            small_pickups = load_data_inner(f)
+            big_pickups = load_data_inner(f)
+            
             statics_dimensions_count = struct.unpack("<i", f.read(4))[0]
             static_items = []
 
-            # print(f"statics dimensions count: {statics_dimensions_count}")
+            #print(f"statics dimensions count: {statics_dimensions_count}")
 
             for _ in range(statics_dimensions_count):
                 statics_count = struct.unpack("<i", f.read(4))[0]
                 statics_arr = []
 
-                # print(f"   statics in dim count: {statics_count}")
+                #print(f"   statics in dim count: {statics_count}")
 
                 for _ in range(statics_count):
                     # bw.Write(cd.image);
                     cd_image = read_cs_string(f)
+                    
+                    #print(f"      read: {cd_image}")
 
                     # bw.Write(cd.position.x);
                     px_bytes = f.read(4)
@@ -192,7 +203,9 @@ def load_data_binary(path: str):
 
             return {
                 "meshes": meshes,
-                "container_map": dimension_containers,
+                "container_map": containers,
+                "small_pickups_map": small_pickups,
+                "big_pickups_map": big_pickups,
                 "static_items": static_items,
             }
 

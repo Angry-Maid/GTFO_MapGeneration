@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 
 from src.data_loading.item import load_item_svg
 from src.mesh_handling.background import apply_grid_background
-from src.mesh_handling.load_mesh import get_bounds_svg, mesh_to_merged_svg, to_svg_pos
+from src.mesh_handling.load_mesh import get_bounds_svg, mesh_to_merged_svg, mesh_to_svg_edges, to_svg_pos
 
 item_svg_buffer = {}
 

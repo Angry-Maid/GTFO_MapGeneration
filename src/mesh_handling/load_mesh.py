@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 from lxml import etree
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPoint
 from shapely.ops import unary_union
 
 SIDE_BUFFERS = 5
@@ -57,6 +57,43 @@ def to_svg_pos(p, lower_x_bound, upper_y_bound):
     y = SIDE_BUFFERS + upper_y_bound - p[1]  # flip inside bounding box
     return (x, y)
 
+
+def mesh_to_svg_edges(vertices, triangles, svg_size=(1000,1000), margin=10, stroke_width=0.8):
+    """
+    Generate SVG wireframe (edges only) from a triangle mesh.
+    """
+    # Project XZ plane
+    pts_2d = vertices[:, [0,2]].astype(float)
+
+    # Fit to SVG
+    min_xy = pts_2d.min(axis=0)
+    max_xy = pts_2d.max(axis=0)
+    span = max_xy - min_xy
+    span[span == 0] = 1
+
+    W, H = svg_size
+    scale = min((W - 2*margin)/span[0], (H - 2*margin)/span[1])
+    tx = -min_xy[0]*scale + margin
+    ty = -min_xy[1]*scale + margin
+
+    def to_svg(p):
+        x = p[0]*scale + tx
+        y = H - (p[1]*scale + ty)  # flip Y for SVG
+        return x, y
+
+    svg_lines = []
+    svg_lines.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">')
+
+    for a,b,c in triangles:
+        pa = to_svg(pts_2d[a])
+        pb = to_svg(pts_2d[b])
+        pc = to_svg(pts_2d[c])
+        pts_str = f"{pa[0]},{pa[1]} {pb[0]},{pb[1]} {pc[0]},{pc[1]}"
+        svg_lines.append(f'<polygon points="{pts_str}" fill="none" stroke="black" stroke-width="{stroke_width}"/>')
+
+    svg_lines.append("</svg>")
+    return "\n".join(svg_lines)
+    
 
 def mesh_to_merged_svg(vertices, triangles, svg_size=(1000, 1000), margin=10):
     """

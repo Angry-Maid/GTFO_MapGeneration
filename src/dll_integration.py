@@ -55,7 +55,9 @@ lib.remove_callback.argtypes = [c_uint8, c_uint32]
 lib.remove_callback.restype = None
 
 
-tracked_spawns = []
+tracked_container_spawns = []
+tracked_small_pickup_spawns = []
+tracked_big_pickup_spawns = []
 marker_set = 0
 level_name = ""
 
@@ -64,13 +66,16 @@ counter_containers = {}
 
 
 def do_everything():
-    global tracked_spawns, marker_set, level_name, counter_containers
+    global tracked_container_spawns, tracked_small_pickup_spawns, tracked_big_pickup_spawns
+    global marker_set, level_name, counter_containers
 
     level_data = load_level(level_name, marker_set)
     if level_data is None:
         return
 
     container_map = level_data["container_map"]
+    small_pickups_map = level_data["small_pickups_map"]
+    big_pickups_map = level_data["big_pickups_map"]
 
     for i in range(len(level_data["dimensions_svgs"])):
         svg = level_data["dimensions_svgs"][i][:]
@@ -78,7 +83,7 @@ def do_everything():
         tris = level_data["meshes"][i]["triangles"]
         bounds = get_bounds_svg(verts, tris)
 
-        for item_spawn in tracked_spawns:
+        for item_spawn in tracked_container_spawns:
             name, zone, id = item_spawn
             name = convert_name(name)
 
@@ -95,6 +100,32 @@ def do_everything():
             pos = (pos_x, pos_y)
 
             svg = add_item(svg, name, pos, data["rotation"], bounds)
+            
+        for item_spawn in tracked_small_pickup_spawns:
+            name, zone, id = item_spawn
+            name = convert_name(name)
+
+            data = small_pickups_map.get(i, {}).get(zone, {}).get(id, None)
+
+            if data is None:
+                continue
+                
+            pos = data["position"]
+
+            svg = add_item(svg, name, pos, data["rotation"], bounds)
+            
+        for item_spawn in tracked_big_pickup_spawns:
+            name, zone, id = item_spawn
+            name = convert_name(name)
+
+            data = big_pickups_map.get(i, {}).get(zone, {}).get(id, None)
+
+            if data is None:
+                continue
+                
+            pos = data["position"]
+
+            svg = add_item(svg, name, pos, data["rotation"], bounds)
 
         # Create a temporary SVG file
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".svg")
@@ -105,24 +136,21 @@ def do_everything():
         webbrowser.open("file://" + tmp.name)
 
 
-def add_to_tracked(name, zone, id):
-    global tracked_spawns
-
-    tracked_spawns.append((name, zone, id))
-
-
 # 4. Implement a Python callback function
 # The callback returns a message that is based on the values
 # u set when the callback is created by add_callback(...)
 @CALLBACK_TYPE
 def my_event_callback(_context, message):
-    global tracked_spawns, marker_set, level_name, counter_containers
+    global tracked_container_spawns, tracked_small_pickup_spawns, tracked_big_pickup_spawns
+    global marker_set, level_name, counter_containers
 
     if message:
         data = json.loads(message)
 
         if "GenerationStart" in data:
-            tracked_spawns.clear()
+            tracked_container_spawns.clear()
+            tracked_small_pickup_spawns.clear()
+            tracked_big_pickup_spawns.clear()
             reset_keys()
             counter_containers = {}
             marker_set = 0
@@ -130,11 +158,16 @@ def my_event_callback(_context, message):
 
         if "Key" in data:
             name, zone, id = data["Key"]
-            add_to_tracked(name, zone, id)
+            if name in {"ArtifactWorldspawn", "ConsumableWorldspawn"}:
+                tracked_small_pickup_spawns.append((name, zone, id))
+            elif name in {"Cell", "CELL"}:
+                tracked_big_pickup_spawns.append((name, zone, id))
+            else:
+                tracked_container_spawns.append((name, zone, id))
 
         if "ResourcePack" in data:
             name, zone, id, _size = data["ResourcePack"]
-            add_to_tracked(name, zone, id)
+            tracked_container_spawns.append((name, zone, id))
 
         if "GenerationOverflow" in data:
             marker_set = data["GenerationOverflow"]

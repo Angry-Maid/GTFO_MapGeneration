@@ -1,3 +1,4 @@
+import argparse
 import sys
 import webbrowser
 
@@ -33,25 +34,31 @@ def add_text(svg, pos, bounds, text):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("No level name provided.")
-        return
+    parser = argparse.ArgumentParser()
+    parser.add_argument("level_name")
+    parser.add_argument("marker", type=int, nargs="?", default=0)
 
-    level_name = sys.argv[1]
-    marker = 0
-    if len(sys.argv) >= 3:
-        try:
-            value = int(sys.argv[2])
-            if value >= 0:
-                marker = value
-        except ValueError:
-            pass  # keep default 0 if conversion fails
+    parser.add_argument("-c", "--container-show", action="store_false", default=True, help="stop showing containers")
+    parser.add_argument("-s", "--small-pickup-show", action="store_true", default=False, help="show small pickups")
+    parser.add_argument("-b", "--big-pickup-show", action="store_true", default=False, help="show big pickups")
+
+    args = parser.parse_args()
+    
+    level_name = args.level_name.upper()
+    marker = args.marker
+    
+    show_containers = args.container_show
+    show_small_pickups = args.small_pickup_show
+    show_big_pickups = args.big_pickup_show
 
     level_data = load_level(level_name, marker)
     if level_data is None:
+        print("Failed to load level data")
         return
 
     container_map = level_data["container_map"]
+    small_pickups_map = level_data["small_pickups_map"]
+    big_pickups_map = level_data["big_pickups_map"]
 
     for i in range(len(level_data["dimensions_svgs"])):
         svg = level_data["dimensions_svgs"][i][:]
@@ -59,14 +66,35 @@ def main():
         tris = level_data["meshes"][i]["triangles"]
         bounds = get_bounds_svg(verts, tris)
 
-        for _, containers_in_zone in container_map.get(i, {}).items():
-            for id, container in containers_in_zone.items():
-                pos = container["position"]
-                name = container["image"]
+        if show_containers:
+            for _, containers_in_zone in container_map.get(i, {}).items():
+                for id, container in containers_in_zone.items():
+                    pos = container["position"]
+                    name = container["image"]
+    
+                    svg = add_item(svg, name, pos, 0, bounds)
+                    pos = (pos[0], pos[1] + 10)
+                    svg = add_text(svg, pos, bounds, str(id))
 
-                svg = add_item(svg, name, pos, 0, bounds)
-                pos = (pos[0], pos[1] + 10)
-                svg = add_text(svg, pos, bounds, str(id))
+        if show_small_pickups:
+            for _, small_pickups_in_zone in small_pickups_map.get(i, {}).items():
+                for id, pickup in small_pickups_in_zone.items():
+                    pos = pickup["position"]
+                    name = "small_pickup"
+    
+                    svg = add_item(svg, name, pos, 0, bounds)
+                    pos = (pos[0], pos[1] + 10)
+                    svg = add_text(svg, pos, bounds, str(id))
+
+        if show_big_pickups:
+            for _, big_pickups_in_zone in big_pickups_map.get(i, {}).items():
+                for id, pickup in big_pickups_in_zone.items():
+                    pos = pickup["position"]
+                    name = "big_pickup"
+    
+                    svg = add_item(svg, name, pos, 0, bounds)
+                    pos = (pos[0], pos[1] + 10)
+                    svg = add_text(svg, pos, bounds, str(id))
 
         # Create a temporary SVG file
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".svg")
