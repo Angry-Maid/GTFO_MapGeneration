@@ -76,6 +76,8 @@ def do_everything():
     container_map = level_data["container_map"]
     small_pickups_map = level_data["small_pickups_map"]
     big_pickups_map = level_data["big_pickups_map"]
+    
+    counter_containers = {}
 
     for i in range(len(level_data["dimensions_svgs"])):
         svg = level_data["dimensions_svgs"][i][:]

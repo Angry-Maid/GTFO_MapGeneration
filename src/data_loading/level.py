@@ -1,6 +1,6 @@
 from src.data_loading.deserializer import load_data_binary
 from src.mesh_handling.svg import get_svg
-import trimesh
+# import trimesh
 
 level_cache = {}
 
@@ -23,13 +23,14 @@ def load_level(level_name, marker):
     return loaded
 
 
+'''
 def show_svg(vertices, triangles):
     print(len(vertices))
     print(len(triangles))
     
     mesh = trimesh.Trimesh(vertices=vertices, faces=triangles, process=False)
     mesh.show()
-
+'''
 
 def build_loaded_extra_data(loaded):
     meshes_per_dimension = loaded["meshes"]
