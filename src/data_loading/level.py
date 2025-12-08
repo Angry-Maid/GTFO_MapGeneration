@@ -37,13 +37,15 @@ def build_loaded_extra_data(loaded):
 
     svgs = []
 
-    for mesh, items in zip(meshes_per_dimension, items_per_dimension):
-        vertices = mesh["vertices"]
-        triangles = mesh["triangles"]
+    for dim_id in meshes_per_dimension.keys():
+        meshes = meshes_per_dimension[dim_id]
+        items = []
+        if dim_id < len(items_per_dimension): 
+            items = items_per_dimension[dim_id]
         
         # show_svg(vertices, triangles)
 
-        svg = get_svg(vertices, triangles, items)
+        svg = get_svg(meshes, items)
         svgs.append(svg)
 
     return svgs

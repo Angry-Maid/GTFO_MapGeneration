@@ -43,6 +43,28 @@ def load_unity_mesh_binary(path):
     return vertices, triangles, normals, uvs
 
 
+def get_bounds_svg_multi(mesh_list):
+    """
+    Compute global 2D SVG bounding box for multiple meshes.
+    mesh_list: list of (vertices, triangles)
+    Returns: [min_xy, max_xy]
+    """
+
+    # Collect all projected points
+    all_pts = []
+    for mesh in mesh_list:
+        vertices = mesh["vertices"]
+        pts_2d = vertices[:, [0, 2]].astype(float)
+        all_pts.append(pts_2d)
+
+    all_pts = np.vstack(all_pts)
+
+    min_xy = all_pts.min(axis=0)
+    max_xy = all_pts.max(axis=0)
+
+    return [min_xy, max_xy]
+
+
 def get_bounds_svg(vertices, triangles):
     pts_2d = vertices[:, [0, 2]].astype(float)
 
@@ -95,7 +117,7 @@ def mesh_to_svg_edges(vertices, triangles, svg_size=(1000,1000), margin=10, stro
     return "\n".join(svg_lines)
     
 
-def mesh_to_merged_svg(vertices, triangles, svg_size=(1000, 1000), margin=10):
+def mesh_to_merged_svg(vertices, triangles):
     """
     Convert triangle mesh directly to merged SVG without intermediate SVG text.
     """
@@ -154,5 +176,87 @@ def mesh_to_merged_svg(vertices, triangles, svg_size=(1000, 1000), margin=10):
 
         d = " ".join(cmds)
         etree.SubElement(root, "path", d=d, fill="rgb(47,61,68)")
+
+    return etree.tostring(root, pretty_print=True).decode("utf-8")
+
+
+def meshes_to_merged_svg(mesh_list):
+    """
+    Convert multiple triangle meshes to a single merged SVG.
+    mesh_list is a list of (vertices, triangles)
+    """
+
+    # ---------------------------------------------
+    # 1. Gather all 2D projected points for bounding box
+    # ---------------------------------------------
+    all_pts = []
+    for mesh in mesh_list:
+        vertices = mesh["vertices"]
+        all_pts.append(vertices[:, [0, 2]].astype(float))
+
+    all_pts = np.vstack(all_pts)
+
+    min_xy = all_pts.min(axis=0)
+    max_xy = all_pts.max(axis=0)
+
+    width = max_xy[0] - min_xy[0]
+    height = max_xy[1] - min_xy[1]
+
+    # ---------------------------------------------
+    # 2. Build all polygons from all meshes
+    # ---------------------------------------------
+    polys = []
+    for mesh in mesh_list:
+        vertices = mesh["vertices"]
+        triangles = mesh["triangles"]
+
+        pts_2d = vertices[:, [0, 2]].astype(float)
+
+        for a, b, c in triangles:
+            pa = to_svg_pos(pts_2d[a], min_xy[0], max_xy[1])
+            pb = to_svg_pos(pts_2d[b], min_xy[0], max_xy[1])
+            pc = to_svg_pos(pts_2d[c], min_xy[0], max_xy[1])
+
+            polys.append(Polygon([pa, pb, pc]))
+
+    # ---------------------------------------------
+    # 3. Merge all triangles from all meshes
+    # ---------------------------------------------
+    merged = unary_union(polys)
+
+    # Ensure output is iterable
+    if merged.geom_type == "Polygon":
+        merged_polys = [merged]
+    else:
+        merged_polys = list(merged.geoms)
+
+    # ---------------------------------------------
+    # 4. Build SVG
+    # ---------------------------------------------
+    NSMAP = {None: "http://www.w3.org/2000/svg"}
+    root = etree.Element(
+        "svg",
+        nsmap=NSMAP,
+        viewBox=f"0 0 {width + SIDE_BUFFERS*2} {height + SIDE_BUFFERS*2}",
+        overflow="visible",
+    )
+
+    for poly in merged_polys:
+        cmds = []
+
+        # exterior boundary
+        ext = poly.exterior.coords
+        cmds.append(f"M {ext[0][0]},{ext[0][1]}")
+        cmds += [f"L {x},{y}" for x, y in ext[1:]]
+        cmds.append("Z")
+
+        # holes
+        for interior in poly.interiors:
+            ic = interior.coords
+            cmds.append(f"M {ic[0][0]},{ic[0][1]}")
+            cmds += [f"L {x},{y}" for x, y in ic[1:]]
+            cmds.append("Z")
+
+        etree.SubElement(root, "path", d=" ".join(cmds), fill="rgb(47,61,68)")
 
     return etree.tostring(root, pretty_print=True).decode("utf-8")

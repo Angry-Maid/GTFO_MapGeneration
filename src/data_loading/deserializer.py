@@ -93,11 +93,12 @@ def load_data_binary(path: str):
     try:
         with open(path, "rb") as f:
             mesh_count = struct.unpack("<i", f.read(4))[0]
-            meshes = []
+            meshes = {}
 
             # print(f"Got {mesh_count} dimensions to parse")
 
             for _ in range(mesh_count):
+                dimension_id = struct.unpack("<i", f.read(4))[0]
                 # ---- Mesh Vertex Count ----
                 verts_len = struct.unpack("<i", f.read(4))[0]
                 tris_len = struct.unpack("<i", f.read(4))[0]
@@ -142,14 +143,22 @@ def load_data_binary(path: str):
 
                 # print(f"decoded uvs: {has_uvs}")
 
-                meshes.append(
-                    {
+                if meshes.__contains__(dimension_id):
+                    meshes[dimension_id].append(
+                        {
+                            "vertices": vertices,
+                            "triangles": triangles,
+                            "normals": normals,
+                            "uvs": uvs,
+                        }
+                    )
+                else:
+                    meshes[dimension_id] = [{
                         "vertices": vertices,
                         "triangles": triangles,
                         "normals": normals,
                         "uvs": uvs,
-                    }
-                )
+                    }]
 
             #print("ended meshes")
             containers = load_data_inner(f)

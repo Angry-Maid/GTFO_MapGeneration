@@ -2,10 +2,48 @@ import xml.etree.ElementTree as ET
 
 from src.data_loading.item import load_item_svg
 from src.mesh_handling.background import apply_grid_background
-from src.mesh_handling.load_mesh import get_bounds_svg, mesh_to_merged_svg, mesh_to_svg_edges, to_svg_pos
+from src.mesh_handling.load_mesh import get_bounds_svg, get_bounds_svg_multi, mesh_to_merged_svg, mesh_to_svg_edges, meshes_to_merged_svg, to_svg_pos
+import re
+
 
 item_svg_buffer = {}
 
+
+def extract_scale(path_svg):
+    match = re.search(r'transform="[^"]*scale\(([^,]+),\s*([^)]+)\)"', path_svg)
+    if not match:
+        return 1.0, 1.0
+
+    sx = float(match.group(1))
+    sy = float(match.group(2))
+    return sx, sy
+
+
+def strip_scale(path_svg):
+    # remove only the scale() part, keep other transforms if present
+    return re.sub(r'scale\([^)]*\)', '', path_svg).replace('transform=""', '')
+
+
+def inline_fill(svg_fragment):
+    # Find .st0 { fill:#xxxxxx; }
+    match = re.search(r'\.st0\s*{\s*fill\s*:\s*([^;]+);', svg_fragment)
+    if not match:
+        return svg_fragment
+    
+    fill_color = match.group(1).strip()
+
+    # Apply fill="..." to any path with class="st0"
+    svg_fragment = re.sub(
+        r'<path([^>]+)class="st0"([^>]*)>',
+        rf'<path\1\2 fill="{fill_color}">',
+        svg_fragment
+    )
+
+    # Remove the style block entirely
+    svg_fragment = re.sub(r'<style[\s\S]*?</style>', '', svg_fragment)
+
+    return svg_fragment
+    
 
 def extract_inner_svg(svg_text: str) -> str:
     """
@@ -23,13 +61,42 @@ def extract_inner_svg(svg_text: str) -> str:
     return "".join(inner_parts)
 
 
-def get_svg(verts, tris, item_descriptors):
-    bounds = get_bounds_svg(verts, tris)
+def get_svg(meshes, item_descriptors):
+    bounds = get_bounds_svg_multi(meshes)
 
-    svg = mesh_to_merged_svg(verts, tris)
+    svg = meshes_to_merged_svg(meshes)
     svg = apply_grid_background(svg)
     return add_static_items(svg, item_descriptors, bounds)
 
+
+def strip_namespaces(svg_fragment):
+    # Remove "ns0:" or any prefix ending with colon
+    svg_fragment = re.sub(r'\b[a-zA-Z0-9]+:', '', svg_fragment)
+    return svg_fragment
+
+
+def extract_translation(transform_str):
+    """
+    Extracts total translation (tx, ty) from a transform string.
+    Supports multiple translate() calls.
+    If ty is missing, assume 0.
+    Returns (tx, ty).
+    """
+    if not transform_str:
+        return 0.0, 0.0
+
+    tx_total, ty_total = 0.0, 0.0
+
+    # Finds all translate(x,y) or translate(x)
+    matches = re.findall(r'translate\(\s*([-\d.]+)(?:\s*,\s*([-\d.]+))?\s*\)', transform_str)
+    for x_str, y_str in matches:
+        tx = float(x_str)
+        ty = float(y_str) if y_str not in (None, "") else 0.0
+        tx_total += tx
+        ty_total += ty
+
+    return tx_total, ty_total
+    
 
 def add_item(svg, item_name, pos, rotation, bounds):
     (pos_x, pos_y) = pos
@@ -38,6 +105,7 @@ def add_item(svg, item_name, pos, rotation, bounds):
         if item_name not in item_svg_buffer:
             item_svg = load_item_svg(item_name)
             inner = extract_inner_svg(item_svg)
+            inner = strip_namespaces(inner)
 
             item_svg_buffer[item_name] = inner
 
@@ -46,9 +114,13 @@ def add_item(svg, item_name, pos, rotation, bounds):
 
         pos_x, pos_y = to_svg_pos([pos_x, pos_y], bounds[0][0], bounds[1][1])
 
+        sx, sy = extract_scale(item_svg_buffer[item_name])
+        item_svg_clean = strip_scale(item_svg_buffer[item_name])
+        tx, ty = extract_translation(item_svg_clean)
+        
         group = f"""
-        <g transform="translate({pos_x}, {pos_y}) rotate({rotation})">
-            {item_svg_buffer[item_name]}
+        <g transform="translate({pos_x + tx}, {pos_y + ty}) rotate({rotation}) scale({sx}, {sy})">
+            {item_svg_clean}
         </g>
         """
 

@@ -10,7 +10,7 @@ from PIL.Image import tempfile
 
 from src.data_loading.item_name_convert import convert_name, reset_keys
 from src.data_loading.level import load_level
-from src.mesh_handling.load_mesh import get_bounds_svg
+from src.mesh_handling.load_mesh import get_bounds_svg, get_bounds_svg_multi
 from src.mesh_handling.svg import add_item
 
 dll_relative_path = "../resources/gtfo_log_reader_core_64bit.dll"
@@ -79,9 +79,7 @@ def do_everything():
 
     for i in range(len(level_data["dimensions_svgs"])):
         svg = level_data["dimensions_svgs"][i][:]
-        verts = level_data["meshes"][i]["vertices"]
-        tris = level_data["meshes"][i]["triangles"]
-        bounds = get_bounds_svg(verts, tris)
+        bounds = get_bounds_svg_multi(level_data["meshes"][i])
 
         for item_spawn in tracked_container_spawns:
             name, zone, id = item_spawn
