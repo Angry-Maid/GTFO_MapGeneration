@@ -14,6 +14,12 @@ def convert_name(name: str):
 
     if name.startswith("Key"):
         return f"Key{key_count}"
+        
+    if name.__contains__("box"):
+        return "box"
+    
+    if name.__contains__("locker"):
+        return "locker"
 
     if name in name_dict:
         name = name_dict[name]
