@@ -1,5 +1,4 @@
 import argparse
-import sys
 import webbrowser
 
 from PIL.Image import tempfile
@@ -36,7 +35,7 @@ def add_text(svg, pos, bounds, text):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("level_name")
-    parser.add_argument("marker", type=int, nargs="?", default=0)
+    parser.add_argument("marker", type=str, nargs="?", default=0)
 
     parser.add_argument("-c", "--container-show", action="store_false", default=True, help="stop showing containers")
     parser.add_argument("-s", "--small-pickup-show", action="store_true", default=False, help="show small pickups")
@@ -68,7 +67,7 @@ def main():
             for _, containers_in_zone in container_map.get(i, {}).items():
                 for id, container in containers_in_zone.items():
                     pos = container["position"]
-                    name = container["image"]
+                    name = container["image"].split("_")[0]
     
                     svg = add_item(svg, name, pos, 0, bounds)
                     pos = (pos[0], pos[1] + 10)
