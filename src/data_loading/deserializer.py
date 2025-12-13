@@ -87,6 +87,57 @@ def load_data_inner(f):
     return dimension_containers
 
 
+def load_overflow_data(f):
+    result = {}
+    outer_count = struct.unpack("<i", f.read(4))[0]
+    
+    for _ in range(outer_count):
+        out_key = struct.unpack("<i", f.read(4))[0]
+        inner_count = struct.unpack("<i", f.read(4))[0]
+        
+        result_dim = {}
+        for _ in range(inner_count):
+            inner_key = struct.unpack("<i", f.read(4))[0]
+            list_count = struct.unpack("<i", f.read(4))[0]
+            
+            result_list = []
+            for _ in range(list_count):
+                # ---- read ContainerDescriptor in the order you provided ----
+                # bw.Write(cd.image);
+                cd_image = read_cs_string(f)
+
+                # bw.Write(cd.position.x);
+                px_bytes = f.read(4)
+                if len(px_bytes) != 4:
+                    raise EOFError("Unexpected EOF while reading position.x")
+                pos_x = struct.unpack("<f", px_bytes)[0]
+
+                # bw.Write(cd.position.y);
+                py_bytes = f.read(4)
+                if len(py_bytes) != 4:
+                    raise EOFError("Unexpected EOF while reading position.y")
+                pos_y = struct.unpack("<f", py_bytes)[0]
+
+                # bw.Write(cd.rotation);
+                rot_bytes = f.read(4)
+                if len(rot_bytes) != 4:
+                    raise EOFError("Unexpected EOF while reading rotation")
+                rotation = struct.unpack("<i", rot_bytes)[0]
+                
+                result_list.append(
+                    {
+                        "image": cd_image,
+                        "position": (pos_x, pos_y),
+                        "rotation": rotation,
+                    }
+                )
+                
+            result_dim[inner_key] = result_list
+
+        result[out_key] = result_dim
+        
+    return result
+
 def load_data_binary(path: str):
     path = Path(path)
 
@@ -160,10 +211,19 @@ def load_data_binary(path: str):
                         "uvs": uvs,
                     }]
 
-            #print("ended meshes")
+            # print("ended meshes")
+            
             containers = load_data_inner(f)
             small_pickups = load_data_inner(f)
             big_pickups = load_data_inner(f)
+            
+            # print("loaded data")
+            
+            overflow_containers = load_overflow_data(f)
+            overflow_small_pickups = load_overflow_data(f)
+            overflow_big_pickups = load_overflow_data(f)
+            
+            # print("loaded overflows")
             
             statics_dimensions_count = struct.unpack("<i", f.read(4))[0]
             static_items = []
@@ -216,6 +276,9 @@ def load_data_binary(path: str):
                 "small_pickups_map": small_pickups,
                 "big_pickups_map": big_pickups,
                 "static_items": static_items,
+                "overflow_containers": overflow_containers,
+                "overflow_small_pickups": overflow_small_pickups,
+                "overflow_big_pickups": overflow_big_pickups,
             }
 
     except Exception as e:

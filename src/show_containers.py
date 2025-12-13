@@ -1,12 +1,10 @@
 import argparse
-import webbrowser
-
-from PIL.Image import tempfile
 
 from src.data_loading.item import load_item_svg
 from src.data_loading.level import load_level
 from src.mesh_handling.load_mesh import get_bounds_svg, get_bounds_svg_multi, to_svg_pos
 from src.mesh_handling.svg import add_item, extract_inner_svg
+from src.page_generator.open_generated import open_generated_svg
 
 
 def add_text(svg, pos, bounds, text):
@@ -93,13 +91,7 @@ def main():
                     pos = (pos[0], pos[1] + 10)
                     svg = add_text(svg, pos, bounds, str(id))
 
-        # Create a temporary SVG file
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".svg")
-        tmp.write(svg.encode("utf-8"))
-        tmp.close()
-
-        # Open it in the default web browser
-        webbrowser.open("file://" + tmp.name)
+        open_generated_svg(svg)
 
 
 if __name__ == "__main__":

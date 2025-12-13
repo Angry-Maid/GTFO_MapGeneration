@@ -1,17 +1,15 @@
 import ctypes
 import json
 import os
-import webbrowser
 from ctypes import CFUNCTYPE, c_char_p, c_uint8, c_uint32, c_void_p
 from pathlib import Path
 from typing import Any
-
-from PIL.Image import tempfile
 
 from src.data_loading.item_name_convert import convert_name, reset_keys
 from src.data_loading.level import load_level
 from src.mesh_handling.load_mesh import get_bounds_svg, get_bounds_svg_multi
 from src.mesh_handling.svg import add_item
+from src.page_generator.open_generated import open_generated_svg
 
 dll_relative_path = "../resources/gtfo_log_reader_core_64bit.dll"
 log_folder_path = str(
@@ -65,6 +63,25 @@ def drop_first(word_string, n: int):
     return "_".join(word_string.split("_")[n:])
 
 
+def get_data_from_arrs(map, overflow, counter_overflow, dimension, zone, id):
+    data = None
+    
+    if id == -1:
+        in_list_id = counter_overflow.get(dimension, {}).get(zone, 0)
+        try:
+            data = overflow.get(dimension, {}).get(zone, [])[in_list_id]
+        except IndexError:
+            data = None
+        
+        counter_overflow.setdefault(dimension, {})[zone] = in_list_id + 1
+        
+        print(f"{in_list_id}: {data}")
+    else:
+        data = map.get(dimension, {}).get(zone, {}).get(id, None)
+    
+    return data
+
+
 def do_everything():
     global tracked_container_spawns, tracked_small_pickup_spawns, tracked_big_pickup_spawns
     global marker_set, level_name, counter_containers
@@ -77,6 +94,14 @@ def do_everything():
     small_pickups_map = level_data["small_pickups_map"]
     big_pickups_map = level_data["big_pickups_map"]
     
+    overflow_containers = level_data["overflow_containers"]
+    overflow_small_pickups = level_data["overflow_small_pickups"]
+    overflow_big_pickups = level_data["overflow_big_pickups"]
+    
+    overflow_counter_container = {}
+    overflow_counter_small_pickup = {}
+    overflow_counter_big_pickup = {}
+    
     counter_containers = {}
 
     for i in range(len(level_data["dimensions_svgs"])):
@@ -87,7 +112,14 @@ def do_everything():
             name, zone, id = item_spawn
             name = convert_name(name)
 
-            data = container_map.get(i, {}).get(zone, {}).get(id, None)
+            data = get_data_from_arrs(
+                container_map, 
+                overflow_containers, 
+                overflow_counter_container, 
+                i, 
+                zone, 
+                id
+            )
 
             if data is None:
                 continue
@@ -108,39 +140,47 @@ def do_everything():
             name, zone, id = item_spawn
             name = convert_name(name)
 
-            data = small_pickups_map.get(i, {}).get(zone, {}).get(id, None)
+            data = get_data_from_arrs(
+                small_pickups_map, 
+                overflow_small_pickups, 
+                overflow_counter_small_pickup, 
+                i, 
+                zone, 
+                id
+            )
                 
             if data is None:
                 continue
+                
             if name == "consumable":
                 name = drop_first(data["image"], 1)
-                
-            pos = data["position"]
 
-            svg = add_item(svg, name, pos, data["rotation"], bounds)
+            svg = add_item(svg, name, data["position"], data["rotation"], bounds)
             
         for item_spawn in tracked_big_pickup_spawns:
             name, zone, id = item_spawn
             name = convert_name(name)
 
-            data = big_pickups_map.get(i, {}).get(zone, {}).get(id, None)
+            data = get_data_from_arrs(
+                big_pickups_map, 
+                overflow_big_pickups, 
+                overflow_counter_big_pickup, 
+                i, 
+                zone, 
+                id
+            )
 
             if data is None:
                 continue
+                
+            print(f"{name} spawned in {zone} at {id}")
+            
             if name == "consumable":
                 name = drop_first(data["image"], 1)
-                
-            pos = data["position"]
 
-            svg = add_item(svg, name, pos, data["rotation"], bounds)
+            svg = add_item(svg, name, data["position"], data["rotation"], bounds)
 
-        # Create a temporary SVG file
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".svg")
-        tmp.write(svg.encode("utf-8"))
-        tmp.close()
-
-        # Open it in the default web browser
-        webbrowser.open("file://" + tmp.name)
+        open_generated_svg(svg)
 
 
 # 4. Implement a Python callback function
