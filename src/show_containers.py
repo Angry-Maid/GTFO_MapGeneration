@@ -1,10 +1,50 @@
 import argparse
+import os
 
 from src.data_loading.item import load_item_svg
 from src.data_loading.level import load_level
 from src.mesh_handling.load_mesh import get_bounds_svg, get_bounds_svg_multi, to_svg_pos
 from src.mesh_handling.svg import add_item, extract_inner_svg
 from src.page_generator.open_generated import open_generated_svg
+
+
+def list_level_markers(level_name):
+    matches = []
+
+    for filename in os.listdir("resources/levels"):
+        if filename.startswith(level_name):
+            matches.append(filename)
+
+    return matches
+
+
+def extract_marker(filename):
+    name, _ = os.path.splitext(filename)
+    marker = name.split("_")[-1]
+    return marker
+
+
+def choose_marker(level_name):
+    files = list_level_markers(level_name)
+
+    if not files:
+        print("No matching levels found.")
+        return None
+
+    print("Available versions:")
+    for i, filename in enumerate(files, start=1):
+        print(f"{i}) {filename}")
+
+    while True:
+        try:
+            choice = int(input("Choose a version number: "))
+            if 1 <= choice <= len(files):
+                chosen_file = files[choice - 1]
+                return extract_marker(chosen_file)
+            else:
+                print("Invalid number.")
+        except ValueError:
+            print("Please enter a number.")
 
 
 def add_text(svg, pos, bounds, text):
@@ -49,9 +89,11 @@ def main():
     show_big_pickups = args.big_pickup_show
 
     level_data = load_level(level_name, marker)
-    if level_data is None:
+    while level_data is None:
         print("Failed to load level data")
-        return
+        marker = choose_marker(level_name)
+        level_data = load_level(level_name, marker)
+
 
     container_map = level_data["container_map"]
     small_pickups_map = level_data["small_pickups_map"]
