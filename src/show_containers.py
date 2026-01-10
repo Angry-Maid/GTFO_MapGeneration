@@ -89,11 +89,14 @@ def main():
     show_big_pickups = args.big_pickup_show
 
     level_data = load_level(level_name, marker)
-    while level_data is None:
+    if level_data is None:
         print("Failed to load level data")
         marker = choose_marker(level_name)
         level_data = load_level(level_name, marker)
-
+        
+    if level_data is None:
+        print("Failed to find level_name or marker is incorrect")
+        return
 
     container_map = level_data["container_map"]
     small_pickups_map = level_data["small_pickups_map"]
